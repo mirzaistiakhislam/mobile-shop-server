@@ -36,9 +36,10 @@ async function run() {
         //     let query = { product_id: id };
         //     const products = await productsCollection.find(query).toArray();
         //     res.send(products);
-        app.get('/categoryproducts/:name', async (req, res) => {
-            const name = req.params.name;
-            let query = { category_name: name };
+        app.get('/categoryproducts/:id', async (req, res) => {
+            const id = req.params.id;
+            console.log(id);
+            let query = { categoryId: id, salesStatus: 'Available' };
             const products = await productsCollection.find(query).toArray();
             res.send(products);
         });
@@ -53,12 +54,16 @@ async function run() {
 
 
         //bookings data save into mongodb
-
         app.post('/bookings', async (req, res) => {
             const booking = req.body;
-            // console.log(booking);
-            const result = await bookingsCollection.insertOne(booking);
-            res.send(result);
+            const query = { email: booking?.email, productId: booking?.productId }
+            const found = await bookingsCollection.findOne(query);
+            if (found) {
+                res.send({ status: 'Already Booked!' })
+            } else {
+                const result = await bookingsCollection.insertOne(booking);
+                res.send(result);
+            }
         });
 
         //users data
@@ -98,6 +103,18 @@ async function run() {
             const query = { _id: ObjectId(id) };
             const result = await productsCollection.deleteOne(query);
             res.send(result);
+        })
+        app.put('/makeadvertise', async (req, res) => {
+            const id = req.body.id;
+            const filter = { _id: ObjectId(id) };
+            const options = { upsert: true };
+            const updatedDoc = {
+                $set: {
+                    advertise: 'Yes'
+                }
+            }
+            const result = await productsCollection.updateOne(filter, updatedDoc, options);
+            res.send(result)
         })
     }
     finally {
