@@ -62,13 +62,43 @@ async function run() {
         });
 
         //users data
-        app.post('/users', async (req, res) => {
+        app.post('/adduser', async (req, res) => {
             const user = req.body;
-            const result = await usersCollection.insertOne(user);
+            console.log(user);
+            const query = { email: user?.email }
+            const found = await usersCollection.findOne(query)
+            if (!found) {
+                const result = await usersCollection.insertOne(user);
+                console.log(result);
+                res.send(result);
+            }
+        })
+        app.post('/addproduct', async (req, res) => {
+            const data = req.body;
+            const result = await productsCollection.insertOne(data);
             res.send(result);
+
         })
 
+        app.get('/usertypecheck/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { email: email };
+            const found = await usersCollection.findOne(query)
+            res.send(found)
+        })
 
+        app.get('/myproducts/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { authorEmail: email };
+            const products = await productsCollection.find(query).toArray()
+            res.send(products)
+        })
+        app.delete('/deleteproduct', async (req, res) => {
+            const id = req.body.id;
+            const query = { _id: ObjectId(id) };
+            const result = await productsCollection.deleteOne(query);
+            res.send(result);
+        })
     }
     finally {
 
