@@ -22,12 +22,26 @@ async function run() {
         const categoriesCollection = client.db('phoneBuyAndSell').collection('categories');
         const productsCollection = client.db('phoneBuyAndSell').collection('products');
         const bookingsCollection = client.db('phoneBuyAndSell').collection('bookings');
+        const reportedCollection = client.db('phoneBuyAndSell').collection('reportedItems');
         const usersCollection = client.db('phoneBuyAndSell').collection('users');
-
         app.get('/categories', async (req, res) => {
             const query = {};
             const categories = await categoriesCollection.find(query).toArray();
             res.send(categories);
+        });
+        app.get('/allsellers', async (req, res) => {
+            const query = { type: 'Seller' };
+            const sellers = await usersCollection.find(query).toArray();
+            res.send(sellers);
+        });
+        app.get('/allbuyers', async (req, res) => {
+            const query = { type: 'Buyer' };
+            const buyers = await usersCollection.find(query).toArray();
+            res.send(buyers);
+        });
+        app.get('/reporteditems', async (req, res) => {
+            const items = await reportedCollection.find({}).toArray();
+            res.send(items);
         });
 
 
@@ -38,18 +52,33 @@ async function run() {
         //     res.send(products);
         app.get('/categoryproducts/:id', async (req, res) => {
             const id = req.params.id;
-            console.log(id);
             let query = { categoryId: id, salesStatus: 'Available' };
             const products = await productsCollection.find(query).toArray();
             res.send(products);
         });
 
         //bookings load on dashboard
-        app.get('/bookings', async (req, res) => {
+        app.get('/orders', async (req, res) => {
             const email = req.query.email;
             const query = { email: email };
-            const bookings = await bookingsCollection.find(query).toArray();
-            res.send(bookings);
+            let orders = await bookingsCollection.find(query).toArray();
+            const products = await productsCollection.find({}).toArray();
+            const data = orders.map(order => {
+                const orderId = order.productId;
+                products.map(product => {
+                    const productId = product._id;
+
+                    id = productId.toString()
+
+                    if (id == orderId) {
+                        order['salesStatus'] = product['salesStatus']
+                        console.log(order['salesStatus'])
+                    }
+                })
+                return order;
+            })
+
+            res.send(data);
         })
 
 
@@ -84,6 +113,21 @@ async function run() {
             res.send(result);
 
         })
+        app.post('/addreporteditem', async (req, res) => {
+            const data = req.body;
+            const query = { reportedEmail: data?.reportedEmail, productId: data.productId }
+            const found = await reportedCollection.findOne(query);
+            console.log(found);
+            if (found) {
+                res.send({ status: 'Already reported!' })
+            }
+            else {
+                const result = await reportedCollection.insertOne(data);
+                res.send(result);
+            }
+
+
+        })
 
         app.get('/usertypecheck/:email', async (req, res) => {
             const email = req.params.email;
@@ -104,6 +148,30 @@ async function run() {
             const result = await productsCollection.deleteOne(query);
             res.send(result);
         })
+        app.delete('/deleteseller', async (req, res) => {
+            const id = req.body.id;
+            const query = { _id: ObjectId(id) };
+            const result = await usersCollection.deleteOne(query);
+            res.send(result);
+        })
+        app.delete('/deletebuyer', async (req, res) => {
+            const id = req.body.id;
+            const query = { _id: ObjectId(id) };
+            const result = await usersCollection.deleteOne(query);
+            res.send(result);
+        })
+        app.delete('/deletereporteditem', async (req, res) => {
+            const id = req.body.id;
+            const query = { _id: ObjectId(id) };
+            const deleteProduct = await productsCollection.deleteOne(query);
+            if (deleteProduct) {
+                const deleteReport = await reportedCollection.deleteMany({ productId: id })
+                res.send(deleteReport);
+            }
+            else {
+                res.send({})
+            }
+        })
         app.put('/makeadvertise', async (req, res) => {
             const id = req.body.id;
             const filter = { _id: ObjectId(id) };
@@ -114,6 +182,18 @@ async function run() {
                 }
             }
             const result = await productsCollection.updateOne(filter, updatedDoc, options);
+            res.send(result)
+        })
+        app.put('/makeadverify', async (req, res) => {
+            const id = req.body.id;
+            const filter = { _id: ObjectId(id) };
+            const options = { upsert: true };
+            const updatedDoc = {
+                $set: {
+                    isVerified: 'Yes'
+                }
+            }
+            const result = await usersCollection.updateOne(filter, updatedDoc, options);
             res.send(result)
         })
     }
