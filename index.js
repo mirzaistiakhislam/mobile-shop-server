@@ -3,13 +3,30 @@ const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config();
 const port = process.env.PORT || 5000;
+const jwt = require('jsonwebtoken');
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
+function verifyJWT(req, res, next) {
+    const authHeader = req.headers.authorization;
 
+    if (!authHeader) {
+        return res.status(401).send({ status: 'unauthorized access' })
+    }
+    else {
+        const token = authHeader.split(' ')[1];
+        jwt.verify(token, process.env.ACCESS_TOKEN, function (e, decoded) {
+            if (e) {
+                return res.status(403).send({ status: 'Forbidden' })
+            }
+            req.decoded = decoded;
+            next()
+        })
+    }
+}
 
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.iipillt.mongodb.net/?retryWrites=true&w=majority`;
@@ -29,49 +46,60 @@ async function run() {
             const categories = await categoriesCollection.find(query).toArray();
             res.send(categories);
         });
-        app.get('/allsellers', async (req, res) => {
+        app.get('/allsellers', verifyJWT, async (req, res) => {
             const query = { type: 'Seller' };
             const sellers = await usersCollection.find(query).toArray();
             res.send(sellers);
         });
-        app.get('/allbuyers', async (req, res) => {
+        app.get('/allbuyers', verifyJWT, async (req, res) => {
             const query = { type: 'Buyer' };
             const buyers = await usersCollection.find(query).toArray();
             res.send(buyers);
         });
-        app.get('/reporteditems', async (req, res) => {
+        app.get('/reporteditems', verifyJWT, async (req, res) => {
             const items = await reportedCollection.find({}).toArray();
             res.send(items);
         });
-        app.get('/advertisedItems', async (req, res) => {
+        app.get('/advertisedItems', verifyJWT, async (req, res) => {
             const items = await productsCollection.find({ advertise: 'Yes' }).toArray();
-            console.log(items)
+           
             res.send(items);
         });
 
-
+        app.get('/jwt', async (req, res) => {
+            const email = req.query.email;
+            const query = { email: email };
+            const user = await usersCollection.findOne(query);
+            if (user) {
+                const token = jwt.sign({ email }, process.env.ACCESS_TOKEN, { expiresIn: '1h' })
+                return res.send({ accessToken: token })
+            }
+            else {
+                res.status(403).send({ accessToken: 'No token' })
+            }
+        })
         // app.get('/products/:id', async (req, res) => {
         //     const id = req.params.id;
         //     let query = { product_id: id };
         //     const products = await productsCollection.find(query).toArray();
         //     res.send(products);
-        app.get('/categoryproducts/:id', async (req, res) => {
+        app.get('/categoryproducts/:id', verifyJWT,async (req, res) => {
             const id = req.params.id;
             let query = { categoryId: id, salesStatus: 'Available' };
             const products = await productsCollection.find(query).toArray();
-            console.log(products);
+        
             if (products.length > 0) {
                 res.send(products);
             }
             else {
                 const categories = await categoriesCollection.findOne({ _id: ObjectId(id) })
-                console.log(categories)
+              
                 res.send({ categoryName: categories.category_name })
             }
         });
 
         //bookings load on dashboard
-        app.get('/orders', async (req, res) => {
+        app.get('/orders', verifyJWT, async (req, res) => {
             const email = req.query.email;
             const query = { email: email };
             let orders = await bookingsCollection.find(query).toArray();
@@ -85,7 +113,7 @@ async function run() {
 
                     if (id == orderId) {
                         order['salesStatus'] = product['salesStatus']
-                        console.log(order['salesStatus'])
+                   
                     }
                 })
                 return order;
@@ -96,7 +124,7 @@ async function run() {
 
 
         //bookings data save into mongodb
-        app.post('/bookings', async (req, res) => {
+        app.post('/bookings', verifyJWT, async (req, res) => {
             const booking = req.body;
             const query = { email: booking?.email, productId: booking?.productId }
             const found = await bookingsCollection.findOne(query);
@@ -111,26 +139,26 @@ async function run() {
         //users data
         app.post('/adduser', async (req, res) => {
             const user = req.body;
-            console.log(user);
+     
             const query = { email: user?.email }
             const found = await usersCollection.findOne(query)
             if (!found) {
                 const result = await usersCollection.insertOne(user);
-                console.log(result);
+     
                 res.send(result);
             }
         })
-        app.post('/addproduct', async (req, res) => {
+        app.post('/addproduct', verifyJWT, async (req, res) => {
             const data = req.body;
             const result = await productsCollection.insertOne(data);
             res.send(result);
 
         })
-        app.post('/addreporteditem', async (req, res) => {
+        app.post('/addreporteditem', verifyJWT, async (req, res) => {
             const data = req.body;
             const query = { reportedEmail: data?.reportedEmail, productId: data.productId }
             const found = await reportedCollection.findOne(query);
-            console.log(found);
+         
             if (found) {
                 res.send({ status: 'Already reported!' })
             }
@@ -142,38 +170,39 @@ async function run() {
 
         })
 
-        app.get('/usertypecheck/:email', async (req, res) => {
+        app.get('/usertypecheck/:email', verifyJWT, async (req, res) => {
+        
             const email = req.params.email;
             const query = { email: email };
             const found = await usersCollection.findOne(query)
             res.send(found)
         })
 
-        app.get('/myproducts/:email', async (req, res) => {
+        app.get('/myproducts/:email', verifyJWT, async (req, res) => {
             const email = req.params.email;
             const query = { authorEmail: email };
             const products = await productsCollection.find(query).toArray()
             res.send(products)
         })
-        app.delete('/deleteproduct', async (req, res) => {
+        app.delete('/deleteproduct', verifyJWT, async (req, res) => {
             const id = req.body.id;
             const query = { _id: ObjectId(id) };
             const result = await productsCollection.deleteOne(query);
             res.send(result);
         })
-        app.delete('/deleteseller', async (req, res) => {
+        app.delete('/deleteseller', verifyJWT, async (req, res) => {
             const id = req.body.id;
             const query = { _id: ObjectId(id) };
             const result = await usersCollection.deleteOne(query);
             res.send(result);
         })
-        app.delete('/deletebuyer', async (req, res) => {
+        app.delete('/deletebuyer', verifyJWT, async (req, res) => {
             const id = req.body.id;
             const query = { _id: ObjectId(id) };
             const result = await usersCollection.deleteOne(query);
             res.send(result);
         })
-        app.delete('/deletereporteditem', async (req, res) => {
+        app.delete('/deletereporteditem', verifyJWT, async (req, res) => {
             const id = req.body.id;
             const query = { _id: ObjectId(id) };
             const deleteProduct = await productsCollection.deleteOne(query);
@@ -185,7 +214,7 @@ async function run() {
                 res.send({})
             }
         })
-        app.put('/makeadvertise', async (req, res) => {
+        app.put('/makeadvertise', verifyJWT, async (req, res) => {
             const id = req.body.id;
             const filter = { _id: ObjectId(id) };
             const options = { upsert: true };
@@ -197,7 +226,7 @@ async function run() {
             const result = await productsCollection.updateOne(filter, updatedDoc, options);
             res.send(result)
         })
-        app.put('/makeadverify', async (req, res) => {
+        app.put('/makeadverify', verifyJWT, async (req, res) => {
             const id = req.body.id;
             const filter = { _id: ObjectId(id) };
             const options = { upsert: true };
