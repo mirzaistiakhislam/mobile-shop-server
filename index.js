@@ -59,7 +59,15 @@ async function run() {
             const id = req.params.id;
             let query = { categoryId: id, salesStatus: 'Available' };
             const products = await productsCollection.find(query).toArray();
-            res.send(products);
+            console.log(products);
+            if (products.length > 0) {
+                res.send(products);
+            }
+            else {
+                const categories = await categoriesCollection.findOne({ _id: ObjectId(id) })
+                console.log(categories)
+                res.send({ categoryName: categories.category_name })
+            }
         });
 
         //bookings load on dashboard
