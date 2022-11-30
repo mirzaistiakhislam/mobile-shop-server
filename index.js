@@ -43,6 +43,11 @@ async function run() {
             const items = await reportedCollection.find({}).toArray();
             res.send(items);
         });
+        app.get('/advertisedItems', async (req, res) => {
+            const items = await productsCollection.find({ advertise: 'Yes' }).toArray();
+            console.log(items)
+            res.send(items);
+        });
 
 
         // app.get('/products/:id', async (req, res) => {
